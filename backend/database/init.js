@@ -1,13 +1,11 @@
 require('dotenv').config();
+const applySchema = require('../scripts/apply-schema');
 
 async function init() {
   console.log('Running database initialization...');
-  const pool = require('../src/config/db');
   try {
-    const [result] = await pool.query('SELECT DATABASE() AS db, VERSION() AS version');
-    console.log(`Database connected: ${result[0].db} (MySQL ${result[0].version})`);
-    console.log('Database schema initialization completed.');
-    await pool.end();
+    await applySchema(process.env.DB_NAME);
+    console.log('Database initialization finished.');
     process.exit(0);
   } catch (error) {
     console.error('Database initialization error:', error.message);
