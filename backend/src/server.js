@@ -1,37 +1,62 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const pool = require('./config/db');
+const env = require('./config/env');
+const { pool } = require('./config/database');
+const app = require('./app');
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+let server;
 
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
-app.use(express.json());
-
-app.get('/', (req, res) => {
-  res.json({ message: 'Ticket Booking API is running' });
-});
-
-app.get('/api/health', async (req, res) => {
+async function startServer() {
   try {
-    const [rows] = await pool.query('SELECT 1 + 1 AS solution, DATABASE() AS databaseName');
-    res.json({
-      status: 'healthy',
-      database: rows[0].databaseName,
-      solution: rows[0].solution
+    // Verify database connectivity before accepting incoming traffic
+    console.log(`Connecting to database ${env.db.name} on ${env.db.host}:${env.db.port}...`);
+    const [rows] = await pool.query('SELECT 1 + 1 AS connected, DATABASE() AS db');
+    console.log(`Database connected successfully to [${rows[0].db}].`);
+
+    server = app.listen(env.port, () => {
+      console.log(`🚀 Express server running on port ${env.port} [NODE_ENV=${env.nodeEnv}]`);
+      console.log(`📡 Health check: http://localhost:${env.port}/api/v1/health`);
     });
   } catch (err) {
-    res.status(500).json({ status: 'unhealthy', error: err.message });
+    console.error('\n=======================================================');
+    console.error('FATAL: Database connectivity check failed during startup:');
+    console.error(`Message: ${err.message}`);
+    console.error('Server startup aborted.');
+    console.error('=======================================================\n');
+    process.exit(1);
   }
-});
-
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`Backend server running on http://localhost:${PORT}`);
-  });
 }
 
-module.exports = app;
+// Graceful shutdown handling
+function setupGracefulShutdown() {
+  const shutdown = async (signal) => {
+    console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
+
+    if (server) {
+      server.close(() => {
+        console.log('HTTP server closed.');
+      });
+    }
+
+    try {
+      await pool.end();
+      console.log('Database connection pool drained and closed.');
+      process.exit(0);
+    } catch (err) {
+      console.error('Error draining database connection pool:', err.message);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+setupGracefulShutdown();
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  startServer,
+  app
+};
