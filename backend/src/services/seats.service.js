@@ -7,10 +7,16 @@ const AppError = require('../utils/AppError');
  */
 class SeatsService {
   async getSeatsByEventId(eventId) {
-    const data = await seatsRepository.findByEventId(eventId);
+    const id = Number(eventId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new AppError('Event ID must be a positive integer', 400);
+    }
+
+    const data = await seatsRepository.findByEventId(id);
     if (!data) {
       throw new AppError('Event not found', 404);
     }
+
     return data;
   }
 }

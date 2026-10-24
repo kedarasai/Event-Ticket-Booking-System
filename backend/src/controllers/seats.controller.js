@@ -10,6 +10,10 @@ class SeatsController {
   getSeats = asyncHandler(async (req, res) => {
     const { eventId } = req.params;
     const data = await seatsService.getSeatsByEventId(eventId);
+
+    // Fresh availability guarantee per specification
+    res.setHeader('Cache-Control', 'no-store');
+
     return sendSuccess(res, 200, 'Seats retrieved successfully', data);
   });
 }

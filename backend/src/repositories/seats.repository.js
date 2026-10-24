@@ -6,8 +6,9 @@ const { pool } = require('../config/database');
  */
 class SeatsRepository {
   async findByEventId(eventId) {
+    // 1 query for event existence and price
     const [eventRows] = await pool.query(
-      'SELECT event_id, price FROM events WHERE event_id = ?',
+      'SELECT event_id, price FROM events WHERE event_id = ? AND event_date > UTC_TIMESTAMP()',
       [eventId]
     );
 
@@ -15,6 +16,7 @@ class SeatsRepository {
 
     const event = eventRows[0];
 
+    // 1 query for all seats of the event, ordered by row_label ASC, seat_col ASC
     const [seatRows] = await pool.query(
       `SELECT seat_id, seat_number, row_label, seat_col, status
        FROM seats
@@ -30,7 +32,7 @@ class SeatsRepository {
         seatId: s.seat_id,
         seatNumber: s.seat_number,
         row: s.row_label,
-        number: s.seat_col,
+        number: Number(s.seat_col),
         status: s.status
       }))
     };
