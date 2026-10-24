@@ -3,29 +3,39 @@ const AppError = require('../utils/AppError');
 
 /**
  * Events Service
- * Business logic layer for event catalogue operations.
+ * Business logic layer for public event querying and pagination.
  */
 class EventsService {
   async getEvents({ search, page, limit }) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+    const limitNum = Math.max(1, Math.min(50, parseInt(limit, 10) || 12));
 
-    const events = await eventsRepository.findAll({ search, page: pageNum, limit: limitNum });
+    const [events, total] = await Promise.all([
+      eventsRepository.findAll({ search, page: pageNum, limit: limitNum }),
+      eventsRepository.countAll({ search })
+    ]);
+
     return {
       events,
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total: events.length // Total count logic can be enhanced in feature phase
+        total
       }
     };
   }
 
   async getEventById(eventId) {
-    const event = await eventsRepository.findById(eventId);
+    const id = Number(eventId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new AppError('Event ID must be a positive integer', 400);
+    }
+
+    const event = await eventsRepository.findById(id);
     if (!event) {
       throw new AppError('Event not found', 404);
     }
+
     return { event };
   }
 }
