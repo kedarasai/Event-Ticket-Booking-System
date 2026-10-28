@@ -42,8 +42,11 @@ class EventsRepository {
         e.description,
         e.venue,
         e.event_date,
+        COALESCE(MIN(s.price), e.price) AS min_price,
+        COALESCE(MAX(s.price), e.price) AS max_price,
         e.price,
         e.category,
+        e.layout_type,
         e.image_url,
         COUNT(s.seat_id) AS total_seats,
         COALESCE(SUM(CASE WHEN s.status = 'AVAILABLE' THEN 1 ELSE 0 END), 0) AS available_seats
@@ -74,8 +77,10 @@ class EventsRepository {
       description: row.description,
       venue: row.venue,
       eventDate: row.event_date ? new Date(row.event_date).toISOString() : null,
-      price: Number(row.price),
+      price: Number(row.min_price !== null && row.min_price !== undefined ? row.min_price : row.price),
+      priceMax: Number(row.max_price !== null && row.max_price !== undefined ? row.max_price : row.price),
       category: row.category,
+      layoutType: row.layout_type,
       imageUrl: row.image_url,
       availableSeats: Number(row.available_seats || 0),
       totalSeats: Number(row.total_seats || 0)
@@ -90,8 +95,11 @@ class EventsRepository {
         e.description,
         e.venue,
         e.event_date,
+        COALESCE(MIN(s.price), e.price) AS min_price,
+        COALESCE(MAX(s.price), e.price) AS max_price,
         e.price,
         e.category,
+        e.layout_type,
         e.image_url,
         COUNT(s.seat_id) AS total_seats,
         COALESCE(SUM(CASE WHEN s.status = 'AVAILABLE' THEN 1 ELSE 0 END), 0) AS available_seats
@@ -105,17 +113,41 @@ class EventsRepository {
     if (!rows.length) return null;
 
     const row = rows[0];
+
+    const [tierRows] = await pool.query(
+      `SELECT 
+        tier,
+        price,
+        COUNT(seat_id) AS total_seats,
+        COALESCE(SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END), 0) AS available_seats
+      FROM seats
+      WHERE event_id = ?
+      GROUP BY tier, price
+      ORDER BY price DESC`,
+      [eventId]
+    );
+
+    const tiers = tierRows.map((t) => ({
+      tier: t.tier,
+      price: Number(t.price),
+      totalSeats: Number(t.total_seats || 0),
+      availableSeats: Number(t.available_seats || 0)
+    }));
+
     return {
       eventId: row.event_id,
       title: row.title,
       description: row.description,
       venue: row.venue,
       eventDate: row.event_date ? new Date(row.event_date).toISOString() : null,
-      price: Number(row.price),
+      price: Number(row.min_price !== null && row.min_price !== undefined ? row.min_price : row.price),
+      priceMax: Number(row.max_price !== null && row.max_price !== undefined ? row.max_price : row.price),
       category: row.category,
+      layoutType: row.layout_type,
       imageUrl: row.image_url,
       availableSeats: Number(row.available_seats || 0),
-      totalSeats: Number(row.total_seats || 0)
+      totalSeats: Number(row.total_seats || 0),
+      tiers
     };
   }
 }

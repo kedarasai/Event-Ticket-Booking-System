@@ -50,6 +50,7 @@ CREATE TABLE events (
   event_date DATETIME NOT NULL COMMENT 'Event date and time stored in UTC',
   price DECIMAL(10,2) NOT NULL,
   category VARCHAR(50) NOT NULL,
+  layout_type VARCHAR(20) NOT NULL DEFAULT 'GENERIC',
   image_url VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT pk_events PRIMARY KEY (event_id),
@@ -67,18 +68,23 @@ CREATE TABLE events (
 --     seat numbers can exist within the same event.
 -- Indexes:
 --   - idx_seats_event_id: Optimizes querying all seats for a specific event.
+--   - idx_seats_event_section: Optimizes filtering seats by section within an event.
 -- ============================================================================
 CREATE TABLE seats (
   seat_id INT AUTO_INCREMENT,
   event_id INT NOT NULL,
+  section VARCHAR(40) NOT NULL DEFAULT 'General',
   seat_number VARCHAR(10) NOT NULL,
   row_label VARCHAR(2) NOT NULL,
   seat_col INT NOT NULL,
+  tier VARCHAR(12) NOT NULL DEFAULT 'STANDARD',
+  price DECIMAL(10,2) NOT NULL DEFAULT 0,
   status ENUM('AVAILABLE', 'BOOKED') NOT NULL DEFAULT 'AVAILABLE',
   CONSTRAINT pk_seats PRIMARY KEY (seat_id),
   CONSTRAINT uq_seats_event_seat UNIQUE (event_id, seat_number),
   CONSTRAINT fk_seats_event FOREIGN KEY (event_id) REFERENCES events (event_id) ON DELETE RESTRICT ON UPDATE RESTRICT,
-  INDEX idx_seats_event_id (event_id)
+  INDEX idx_seats_event_id (event_id),
+  INDEX idx_seats_event_section (event_id, section)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -144,6 +150,7 @@ CREATE TABLE booking_seats (
   booking_seat_id INT AUTO_INCREMENT,
   booking_id INT NOT NULL,
   seat_id INT NOT NULL,
+  price_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   active_seat_id INT GENERATED ALWAYS AS (IF(is_active, seat_id, NULL)) STORED,
   CONSTRAINT pk_booking_seats PRIMARY KEY (booking_seat_id),

@@ -18,7 +18,34 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.corsOrigin,
+    origin: (origin, callback) => {
+      // Requests with no Origin header (curl, scripts, server-to-server) are allowed
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Any origin listed in CORS_ORIGIN is allowed (may hold comma-separated values)
+      const configuredOrigins = (process.env.CORS_ORIGIN || env.corsOrigin || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (configuredOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // When NODE_ENV is NOT "production", allow localhost or 127.0.0.1 on any port
+      const currentEnv = process.env.NODE_ENV || env.nodeEnv;
+      if (currentEnv !== 'production') {
+        const localhostPattern = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+        if (localhostPattern.test(origin)) {
+          return callback(null, true);
+        }
+      }
+
+      // Anything else is rejected (no CORS headers sent)
+      return callback(null, false);
+    },
     allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
     credentials: true
   })
@@ -57,6 +84,12 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/events', eventsRoutes);
 app.use('/api/v1/seats', seatsRoutes);
 app.use('/api/v1/bookings', bookingsRoutes);
+
+// Dev-only routes (mounted ONLY outside production)
+if (process.env.NODE_ENV !== 'production') {
+  const devRoutes = require('./routes/dev.routes');
+  app.use('/api/v1/dev', devRoutes);
+}
 
 // 404 Catch-all handler for unmapped routes
 app.use((req, res) => {

@@ -8,10 +8,15 @@ const pool = mysql.createPool({
   password: env.db.password,
   database: env.db.name,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || (env.nodeEnv === 'production' ? 10 : 30)),
   queueLimit: 0,
   timezone: 'Z',
   dateStrings: false
+});
+
+// Ensure every newly created connection in the pool operates in UTC
+pool.pool.on('connection', (conn) => {
+  conn.query("SET time_zone = '+00:00'");
 });
 
 /**

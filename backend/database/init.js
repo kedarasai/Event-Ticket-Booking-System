@@ -15,6 +15,229 @@ function getUtcEventDate(daysAhead) {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+// Data-driven venue seating plans with tiered pricing rules
+const SEAT_PLANS = {
+  ARENA: {
+    sections: [
+      {
+        name: 'Floor',
+        code: 'FLR',
+        tier: 'VIP',
+        multiplier: 2.0,
+        rows: [
+          { label: 'A', count: 10 },
+          { label: 'B', count: 10 },
+          { label: 'C', count: 10 },
+          { label: 'D', count: 10 },
+          { label: 'E', count: 10 }
+        ]
+      },
+      {
+        name: 'Lower Left',
+        code: 'LL',
+        tier: 'PREMIUM',
+        multiplier: 1.5,
+        rows: [
+          { label: 'A', count: 4 },
+          { label: 'B', count: 5 },
+          { label: 'C', count: 5 },
+          { label: 'D', count: 6 }
+        ]
+      },
+      {
+        name: 'Lower Right',
+        code: 'LR',
+        tier: 'PREMIUM',
+        multiplier: 1.5,
+        rows: [
+          { label: 'A', count: 4 },
+          { label: 'B', count: 5 },
+          { label: 'C', count: 5 },
+          { label: 'D', count: 6 }
+        ]
+      },
+      {
+        name: 'Upper Tier',
+        code: 'UPR',
+        tier: 'STANDARD',
+        multiplier: 1.0,
+        rows: [
+          { label: 'A', count: 14 },
+          { label: 'B', count: 16 },
+          { label: 'C', count: 18 }
+        ]
+      }
+    ]
+  },
+  AUDITORIUM: {
+    sections: [
+      {
+        name: 'Left Block',
+        code: 'LB',
+        tier: 'STANDARD',
+        multiplier: 1.0,
+        rows: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((label) => ({ label, count: 4 }))
+      },
+      {
+        name: 'Center Block',
+        code: 'CB',
+        tier: 'PREMIUM',
+        multiplier: 1.4,
+        rows: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((label) => ({ label, count: 8 }))
+      },
+      {
+        name: 'Right Block',
+        code: 'RB',
+        tier: 'STANDARD',
+        multiplier: 1.0,
+        rows: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((label) => ({ label, count: 4 }))
+      }
+    ]
+  },
+  CLUB: {
+    sections: [
+      {
+        name: 'Tables',
+        code: '',
+        tier: 'PREMIUM',
+        multiplier: 1.3,
+        rows: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'].map((label) => ({ label, count: 4 })),
+        formatSeatNumber: (code, rowLabel, col) => `${rowLabel}-${col}`
+      },
+      {
+        name: 'Bar',
+        code: 'BAR',
+        tier: 'ECONOMY',
+        multiplier: 0.7,
+        rows: [{ label: 'B', count: 8 }],
+        formatSeatNumber: (code, rowLabel, col) => `${code}-${rowLabel}${col}`
+      }
+    ]
+  },
+  THEATRE: {
+    sections: [
+      {
+        name: 'Stalls',
+        code: 'STL',
+        tier: 'PREMIUM',
+        multiplier: 1.5,
+        rows: [
+          { label: 'A', count: 10 },
+          { label: 'B', count: 10 },
+          { label: 'C', count: 12 },
+          { label: 'D', count: 12 },
+          { label: 'E', count: 14 },
+          { label: 'F', count: 14 },
+          { label: 'G', count: 16 }
+        ]
+      },
+      {
+        name: 'Circle',
+        code: 'CIR',
+        tier: 'STANDARD',
+        multiplier: 1.0,
+        rows: [
+          { label: 'A', count: 14 },
+          { label: 'B', count: 14 },
+          { label: 'C', count: 16 }
+        ]
+      },
+      {
+        name: 'Left Box',
+        code: 'LBX',
+        tier: 'VIP',
+        multiplier: 2.2,
+        rows: [
+          { label: 'A', count: 3 },
+          { label: 'B', count: 3 }
+        ]
+      },
+      {
+        name: 'Right Box',
+        code: 'RBX',
+        tier: 'VIP',
+        multiplier: 2.2,
+        rows: [
+          { label: 'A', count: 3 },
+          { label: 'B', count: 3 }
+        ]
+      }
+    ]
+  },
+  STADIUM: {
+    sections: [
+      { name: 'North Stand', code: 'NTH', tier: 'VIP', multiplier: 2.0, rows: [{ label: 'A', count: 10 }, { label: 'B', count: 10 }, { label: 'C', count: 10 }] },
+      { name: 'NE Corner', code: 'NEC', tier: 'STANDARD', multiplier: 1.0, rows: [{ label: 'A', count: 3 }, { label: 'B', count: 3 }, { label: 'C', count: 3 }] },
+      { name: 'East End', code: 'EST', tier: 'ECONOMY', multiplier: 0.7, rows: [{ label: 'A', count: 5 }, { label: 'B', count: 5 }, { label: 'C', count: 5 }] },
+      { name: 'SE Corner', code: 'SEC', tier: 'STANDARD', multiplier: 1.0, rows: [{ label: 'A', count: 3 }, { label: 'B', count: 3 }, { label: 'C', count: 3 }] },
+      { name: 'South Stand', code: 'STH', tier: 'PREMIUM', multiplier: 1.5, rows: [{ label: 'A', count: 10 }, { label: 'B', count: 10 }, { label: 'C', count: 10 }] },
+      { name: 'SW Corner', code: 'SWC', tier: 'STANDARD', multiplier: 1.0, rows: [{ label: 'A', count: 3 }, { label: 'B', count: 3 }, { label: 'C', count: 3 }] },
+      { name: 'West End', code: 'WST', tier: 'ECONOMY', multiplier: 0.7, rows: [{ label: 'A', count: 5 }, { label: 'B', count: 5 }, { label: 'C', count: 5 }] },
+      { name: 'NW Corner', code: 'NWC', tier: 'STANDARD', multiplier: 1.0, rows: [{ label: 'A', count: 3 }, { label: 'B', count: 3 }, { label: 'C', count: 3 }] }
+    ]
+  },
+  FESTIVAL: {
+    sections: [
+      {
+        name: 'VIP Front',
+        code: 'VIP',
+        tier: 'VIP',
+        multiplier: 2.5,
+        rows: [
+          { label: 'A', count: 8 },
+          { label: 'B', count: 10 },
+          { label: 'C', count: 12 }
+        ]
+      },
+      {
+        name: 'Zone A',
+        code: 'ZNA',
+        tier: 'PREMIUM',
+        multiplier: 1.5,
+        rows: [
+          { label: 'A', count: 6 },
+          { label: 'B', count: 7 },
+          { label: 'C', count: 8 },
+          { label: 'D', count: 9 }
+        ]
+      },
+      {
+        name: 'Zone B',
+        code: 'ZNB',
+        tier: 'PREMIUM',
+        multiplier: 1.5,
+        rows: [
+          { label: 'A', count: 6 },
+          { label: 'B', count: 7 },
+          { label: 'C', count: 8 },
+          { label: 'D', count: 9 }
+        ]
+      },
+      {
+        name: 'Lawn',
+        code: 'LWN',
+        tier: 'ECONOMY',
+        multiplier: 0.6,
+        rows: [
+          { label: 'A', count: 14 },
+          { label: 'B', count: 16 },
+          { label: 'C', count: 18 }
+        ]
+      }
+    ]
+  }
+};
+
+/**
+ * Computes seat price in integer paise, rounded to nearest 10 rupees.
+ */
+function computeSeatPrice(basePrice, multiplier = 1.0) {
+  const basePaise = Math.round(Number(basePrice) * 100);
+  const rawPaise = Math.round(basePaise * multiplier);
+  const roundedPaise = Math.round(rawPaise / 1000) * 1000;
+  return Number((roundedPaise / 100).toFixed(2));
+}
+
 async function initDatabase(dbOverride) {
   const targetDb = dbOverride || process.env.DB_NAME || 'ticket_booking';
   console.log(`\n========================================`);
@@ -30,8 +253,11 @@ async function initDatabase(dbOverride) {
     port: Number(process.env.DB_PORT || 3306),
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    database: targetDb
+    database: targetDb,
+    timezone: 'Z',
+    dateStrings: false
   });
+  await connection.query("SET time_zone = '+00:00'");
 
   try {
     console.log('Seeding demo users...');
@@ -58,7 +284,7 @@ async function initDatabase(dbOverride) {
     );
     const guestUserId = guestUser.user_id;
 
-    console.log('Seeding 6 realistic upcoming events...');
+    console.log('Seeding 6 realistic upcoming events with venue-specific seating plans...');
     const eventsData = [
       {
         title: 'Neon Odyssey: Synthwave World Tour',
@@ -66,7 +292,8 @@ async function initDatabase(dbOverride) {
         venue: 'Cyber Dome, Neo Metropolis',
         eventDate: getUtcEventDate(3),
         price: 1999.00,
-        category: 'Concert'
+        category: 'Concert',
+        layoutType: 'ARENA'
       },
       {
         title: 'NextGen AI & Cloud Summit 2026',
@@ -74,7 +301,8 @@ async function initDatabase(dbOverride) {
         venue: 'Horizon Grand Convention Center',
         eventDate: getUtcEventDate(7),
         price: 3499.00,
-        category: 'Conference'
+        category: 'Conference',
+        layoutType: 'AUDITORIUM'
       },
       {
         title: 'Midnight Chuckles: Standup Comedy Special',
@@ -82,7 +310,8 @@ async function initDatabase(dbOverride) {
         venue: 'The Laugh Garage Arena',
         eventDate: getUtcEventDate(10),
         price: 799.00,
-        category: 'Comedy'
+        category: 'Comedy',
+        layoutType: 'CLUB'
       },
       {
         title: 'The Phantom Illusion: Live Musical Theatre',
@@ -90,7 +319,8 @@ async function initDatabase(dbOverride) {
         venue: 'Royal Opera House',
         eventDate: getUtcEventDate(14),
         price: 1499.00,
-        category: 'Theatre'
+        category: 'Theatre',
+        layoutType: 'THEATRE'
       },
       {
         title: 'Apex Championship: National Sports Finals',
@@ -98,7 +328,8 @@ async function initDatabase(dbOverride) {
         venue: 'Vanguard Multi-Sport Stadium',
         eventDate: getUtcEventDate(21),
         price: 1299.00,
-        category: 'Sports'
+        category: 'Sports',
+        layoutType: 'STADIUM'
       },
       {
         title: 'Solaris Light & Sonic Festival',
@@ -106,61 +337,85 @@ async function initDatabase(dbOverride) {
         venue: 'Elysium Open Grounds',
         eventDate: getUtcEventDate(30),
         price: 4999.00,
-        category: 'Festival'
+        category: 'Festival',
+        layoutType: 'FESTIVAL'
       }
     ];
 
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    const colsCount = 12;
-
-    // Scattered seat selections for each event (12 seats out of 96 = 12.5% ~12%)
-    const scatteredSeatPatterns = [
-      ['A4', 'A5', 'B6', 'B7', 'C3', 'C8', 'D5', 'D6', 'E4', 'F9', 'G2', 'H11'],
-      ['A1', 'A12', 'B3', 'B10', 'C5', 'C7', 'D4', 'E8', 'F2', 'G6', 'G7', 'H12'],
-      ['A6', 'A7', 'B5', 'B8', 'C6', 'D2', 'D11', 'E5', 'E6', 'F4', 'G9', 'H3'],
-      ['A2', 'B4', 'B9', 'C1', 'C12', 'D6', 'D7', 'E3', 'F8', 'G5', 'H6', 'H7'],
-      ['A3', 'A10', 'B2', 'C4', 'C9', 'D5', 'E7', 'E10', 'F1', 'G8', 'H4', 'H9'],
-      ['A8', 'B1', 'B11', 'C7', 'D3', 'D10', 'E2', 'F6', 'F7', 'G4', 'H5', 'H10']
+    // Pre-booking patterns (~12% per event) covering multiple sections
+    const preBookedPatterns = [
+      // 1. ARENA (Concert - 16 of 138 booked: 11.6%)
+      ['FLR-A4', 'FLR-A5', 'FLR-B3', 'FLR-C7', 'FLR-D2', 'FLR-E8', 'LL-A2', 'LL-B3', 'LL-C4', 'LR-A3', 'LR-B2', 'LR-D5', 'UPR-A5', 'UPR-B8', 'UPR-B9', 'UPR-C12'],
+      // 2. AUDITORIUM (Conference - 15 of 128 booked: 11.7%)
+      ['LB-A2', 'LB-C3', 'LB-E1', 'LB-G4', 'CB-A4', 'CB-B5', 'CB-C2', 'CB-D7', 'CB-E3', 'CB-F6', 'CB-H4', 'RB-B2', 'RB-D1', 'RB-F3', 'RB-H4'],
+      // 3. CLUB (Comedy - 5 of 40 booked: 12.5%)
+      ['T1-2', 'T3-4', 'T5-1', 'T7-3', 'BAR-B4'],
+      // 4. THEATRE (Theatre - 17 of 144 booked: 11.8%)
+      ['STL-A5', 'STL-B6', 'STL-C3', 'STL-D8', 'STL-E4', 'STL-F10', 'STL-G7', 'STL-G8', 'CIR-A4', 'CIR-B7', 'CIR-B8', 'CIR-C11', 'CIR-C12', 'LBX-A2', 'LBX-B1', 'RBX-A1', 'RBX-B3'],
+      // 5. STADIUM (Sports - 15 of 126 booked: 11.9%)
+      ['NTH-A3', 'NTH-B5', 'NTH-C8', 'NEC-A1', 'NEC-B2', 'EST-A2', 'EST-C4', 'SEC-B1', 'STH-A4', 'STH-B7', 'STH-C2', 'SWC-A2', 'WST-A3', 'WST-B4', 'NWC-C1'],
+      // 6. FESTIVAL (Festival - 16 of 138 booked: 11.6%)
+      ['VIP-A3', 'VIP-B5', 'VIP-C8', 'VIP-C9', 'ZNA-A2', 'ZNA-B4', 'ZNA-C3', 'ZNA-D7', 'ZNB-A3', 'ZNB-B2', 'ZNB-C6', 'ZNB-D5', 'LWN-A4', 'LWN-B8', 'LWN-B9', 'LWN-C14']
     ];
 
     let totalSeatsInserted = 0;
     let totalBookingsInserted = 0;
     let totalBookingSeatsInserted = 0;
 
+    const perEventSummaries = [];
+
     for (let i = 0; i < eventsData.length; i++) {
       const ev = eventsData[i];
+      const plan = SEAT_PLANS[ev.layoutType];
+
       const [eventResult] = await connection.query(
-        `INSERT INTO events (title, description, venue, event_date, price, category, image_url)
-         VALUES (?, ?, ?, ?, ?, ?, NULL)`,
-        [ev.title, ev.description, ev.venue, ev.eventDate, ev.price, ev.category]
+        `INSERT INTO events (title, description, venue, event_date, price, category, layout_type, image_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+        [ev.title, ev.description, ev.venue, ev.eventDate, ev.price, ev.category, ev.layoutType]
       );
       const eventId = eventResult.insertId;
 
-      // Seed 96 seats (8 rows A-H x 12 cols)
+      // Generate seats from venue plan
       const seatValues = [];
-      for (const rowLabel of rows) {
-        for (let col = 1; col <= colsCount; col++) {
-          const seatNumber = `${rowLabel}${col}`;
-          seatValues.push([eventId, seatNumber, rowLabel, col, 'AVAILABLE']);
+      const sectionBreakdown = {};
+
+      for (const sec of plan.sections) {
+        let secCount = 0;
+        const tier = sec.tier || 'STANDARD';
+        const multiplier = sec.multiplier !== undefined ? sec.multiplier : 1.0;
+        const price = computeSeatPrice(ev.price, multiplier);
+
+        for (const row of sec.rows) {
+          for (let col = 1; col <= row.count; col++) {
+            const seatNumber = sec.formatSeatNumber
+              ? sec.formatSeatNumber(sec.code, row.label, col)
+              : `${sec.code}-${row.label}${col}`;
+            seatValues.push([eventId, sec.name, seatNumber, row.label, col, tier, price, 'AVAILABLE']);
+            secCount++;
+          }
         }
+        sectionBreakdown[sec.name] = { count: secCount, tier, price };
       }
 
       await connection.query(
-        'INSERT INTO seats (event_id, seat_number, row_label, seat_col, status) VALUES ?',
+        'INSERT INTO seats (event_id, section, seat_number, row_label, seat_col, tier, price, status) VALUES ?',
         [seatValues]
       );
       totalSeatsInserted += seatValues.length;
 
-      // Query seat IDs for the selected scattered seats for this event
-      const selectedSeatNumbers = scatteredSeatPatterns[i];
+      // Seed ~12% pre-booked seats
+      const preBookedNumbers = preBookedPatterns[i];
       const [selectedSeats] = await connection.query(
-        'SELECT seat_id, seat_number FROM seats WHERE event_id = ? AND seat_number IN (?)',
-        [eventId, selectedSeatNumbers]
+        'SELECT seat_id, seat_number, price FROM seats WHERE event_id = ? AND seat_number IN (?)',
+        [eventId, preBookedNumbers]
       );
 
       const seatIds = selectedSeats.map((s) => s.seat_id);
-      const bookingSeatCount = seatIds.length;
-      const totalAmount = Number((ev.price * bookingSeatCount).toFixed(2));
+      let totalPaise = 0;
+      for (const s of selectedSeats) {
+        totalPaise += Math.round(Number(s.price) * 100);
+      }
+      const totalAmount = Number((totalPaise / 100).toFixed(2));
       const bookingReference = `BK-${eventId}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
 
       // Create confirmed booking for seed-guest
@@ -172,10 +427,15 @@ async function initDatabase(dbOverride) {
       const bookingId = bookingResult.insertId;
       totalBookingsInserted++;
 
-      // Create active booking_seats rows
-      const bookingSeatValues = seatIds.map((seatId) => [bookingId, seatId, true]);
+      // Create active booking_seats rows with price_paid snapshot
+      const bookingSeatValues = selectedSeats.map((s) => [
+        bookingId,
+        s.seat_id,
+        Number(s.price),
+        true
+      ]);
       await connection.query(
-        'INSERT INTO booking_seats (booking_id, seat_id, is_active) VALUES ?',
+        'INSERT INTO booking_seats (booking_id, seat_id, price_paid, is_active) VALUES ?',
         [bookingSeatValues]
       );
       totalBookingSeatsInserted += bookingSeatValues.length;
@@ -185,14 +445,44 @@ async function initDatabase(dbOverride) {
         'UPDATE seats SET status = "BOOKED" WHERE seat_id IN (?)',
         [seatIds]
       );
+
+      // Query tier table breakdown
+      const [tierRows] = await connection.query(
+        `SELECT tier, price, COUNT(seat_id) AS seat_count,
+                COALESCE(SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END), 0) AS available_count
+         FROM seats
+         WHERE event_id = ?
+         GROUP BY tier, price
+         ORDER BY price DESC`,
+        [eventId]
+      );
+
+      perEventSummaries.push({
+        id: eventId,
+        title: ev.title,
+        layoutType: ev.layoutType,
+        totalSeats: seatValues.length,
+        bookedCount: seatIds.length,
+        totalAmount,
+        tiers: tierRows
+      });
+    }
+
+    console.log(`\n--- Per-Event Tier Table & Seating Summary ---`);
+    for (const s of perEventSummaries) {
+      console.log(`\nEvent #${s.id}: ${s.title} [${s.layoutType}] (Pre-booked total: ₹${s.totalAmount.toFixed(2)})`);
+      console.log(`  Tier Table (tier | price | seat_count | available):`);
+      for (const t of s.tiers) {
+        console.log(`    - ${t.tier.padEnd(8)} | ₹${Number(t.price).toFixed(2).padStart(8)} | ${String(t.seat_count).padStart(3)} seats | ${String(t.available_count).padStart(3)} available`);
+      }
     }
 
     console.log(`\n--- Database Seeding Summary (${targetDb}) ---`);
     console.log(`Users seeded:        ${usersData.length}`);
     console.log(`Events seeded:       ${eventsData.length}`);
-    console.log(`Seats seeded:        ${totalSeatsInserted} (96 per event)`);
+    console.log(`Seats seeded:        ${totalSeatsInserted}`);
     console.log(`Bookings seeded:     ${totalBookingsInserted} (1 per event by seed-guest)`);
-    console.log(`BookingSeats seeded: ${totalBookingSeatsInserted} (12 per event, is_active=true)`);
+    console.log(`BookingSeats seeded: ${totalBookingSeatsInserted} (is_active=true)`);
     console.log(`Database initialization completed successfully.\n`);
   } finally {
     await connection.end();

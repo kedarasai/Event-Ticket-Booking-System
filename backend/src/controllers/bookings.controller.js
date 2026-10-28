@@ -8,15 +8,22 @@ const { sendSuccess } = require('../utils/response');
  */
 class BookingsController {
   createBooking = asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
     const { eventId, seatIds } = req.body;
     const idempotencyKey = req.header('Idempotency-Key');
-    const data = await bookingsService.createBooking({
-      userId: req.user?.userId,
-      eventId,
-      seatIds,
+
+    const result = await bookingsService.createBooking(
+      userId,
+      { eventId, seatIds },
       idempotencyKey
-    });
-    return sendSuccess(res, 201, 'Booking created successfully', data);
+    );
+
+    const message =
+      result.statusCode === 201
+        ? 'Booking confirmed successfully'
+        : 'Booking retrieved successfully';
+
+    return sendSuccess(res, result.statusCode, message, result.booking);
   });
 
   getMyBookings = asyncHandler(async (req, res) => {
